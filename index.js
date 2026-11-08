@@ -2663,9 +2663,21 @@ function patchsource(raw, broken, fixed, label) {
   return raw.split(broken).join(fixed);
 }
 
+// Cloudflare caches by file extension, and .mjs is not on its default list, so
+// both transports were fetched from the origin for every cold client even
+// though they are immutable. These .js aliases serve the identical module from
+// a path the edge caches; the .mjs routes stay for anything already using them.
+function sendtransport(reply, source) {
+  reply
+    .header("Cache-Control", "public, max-age=31536000, immutable")
+    .header("CDN-Cache-Control", "public, max-age=31536000")
+    .type("application/javascript")
+    .send(source);
+}
+
 // Epoxy 3.0.1 iterates headers with for..of, but BareHeaders is a plain object.
 let patchedepoxy = null;
-fastify.get("/epoxy/index.mjs", (_req, reply) => {
+function epoxytransport() {
   if (!patchedepoxy) {
     const raw = readFileSync(join(epoxypath, "index.mjs"), "utf8");
     patchedepoxy = raw.replace(
@@ -2673,7 +2685,24 @@ fastify.get("/epoxy/index.mjs", (_req, reply) => {
       'for (let [key, value] of (headers != null && typeof headers[Symbol.iterator] === "function" ? headers : Object.entries(headers || {}))) {',
     );
   }
-  reply.type("application/javascript").send(patchedepoxy);
+  return patchedepoxy;
+}
+
+fastify.get("/epoxy/index.js", (_req, reply) =>
+  sendtransport(reply, epoxytransport()),
+);
+fastify.get("/epoxy/index.mjs", (_req, reply) =>
+  sendtransport(reply, epoxytransport()),
+);
+
+// libcurl-transport needs no patch; serving its entry point explicitly gives it
+// a cacheable .js URL instead of relying on the static mount for .mjs.
+let libcurltransport = null;
+fastify.get("/libcurl/index.js", (_req, reply) => {
+  if (!libcurltransport) {
+    libcurltransport = readFileSync(join(libcurlPath, "index.mjs"), "utf8");
+  }
+  sendtransport(reply, libcurltransport);
 });
 
 // Scramjet 2.0.67-alpha.2 needs Object.hasOwn and BroadcastChannel, which

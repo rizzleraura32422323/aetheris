@@ -93,9 +93,6 @@ https:// {
 		on_demand
 	}
 
-	# The games catalog alone is ~5.5MB of JSON (~1.1MB gzipped).
-	encode zstd gzip
-
 	# Baseline security headers. /game-assets drops nosniff below because raw
 	# game builds rely on sniffing. strict-origin-when-cross-origin keeps
 	# signed /movie-proxy queries from leaking while still sending a Referer.
@@ -368,8 +365,11 @@ https:// {
 		reverse_proxy http://127.0.0.1:8080
 	}
 
-	# Main app
+	# Main app. Compression is scoped to this handler instead of the whole site:
+	# the game asset relay above serves already-compressed builds (tens of MB of
+	# wasm/data per install), and re-encoding those only burns origin CPU.
 	handle {
+		encode zstd gzip
 		reverse_proxy http://127.0.0.1:8080
 	}
 }

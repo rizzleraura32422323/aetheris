@@ -154,8 +154,13 @@
       var name = order[i];
       var transport = null;
       try {
+        // .js, not .mjs: Cloudflare caches by file extension and skips .mjs, so
+        // the .mjs paths hit the origin on every cold start. The ?v= is what the
+        // server uses to mark the response immutable.
         var mod = await import(
-          name === "epoxy" ? "/epoxy/index.mjs" : "/libcurl/index.mjs"
+          (name === "epoxy" ? "/epoxy/index.js" : "/libcurl/index.js") +
+            "?v=" +
+            PROXY_ENGINE_VERSION
         );
         transport = new mod.default({ wisp: wispurl });
         await withtimeout(
@@ -227,7 +232,9 @@
       if (!starting) {
         var token = starttoken;
         starting = (async function () {
-          var mod = await import("/libcurl/index.mjs");
+          var mod = await import(
+            "/libcurl/index.js?v=" + PROXY_ENGINE_VERSION
+          );
           var extra = new mod.default({ wisp: wispurl });
           try {
             await withtimeout(
@@ -886,16 +893,47 @@
     var token = starttoken;
 
     controllerpromise = (async function () {
-      await ensureloaded();
-      var sw = await waitforserviceworker();
-      var saves = await preparelocalsaves();
-
       var wispurl =
         (location.protocol === "https:" ? "wss" : "ws") +
         "://" +
         location.host +
         "/wisp/";
-      var picked = await createtransport(wispurl);
+
+      // These four legs are independent: the engine bundles, the service
+      // worker, the legacy-save merge and the transport's fetch client. Run
+      // them together so a launch waits for the slowest instead of their sum.
+      // Each leg settles into a result object so one failure never leaves a
+      // started transport holding a wisp socket for a session that never began.
+      var legs = await Promise.all(
+        [
+          ensureloaded(),
+          waitforserviceworker(),
+          preparelocalsaves(),
+          createtransport(wispurl),
+        ].map(function (leg) {
+          return leg.then(
+            function (value) {
+              return { ok: true, value: value };
+            },
+            function (error) {
+              return { ok: false, error: error };
+            },
+          );
+        }),
+      );
+      var picked = legs[3].ok ? legs[3].value : null;
+      var failedleg = legs.find(function (leg) {
+        return !leg.ok;
+      });
+      if (failedleg || !picked) {
+        if (picked) closequietly(picked.transport);
+        throw (
+          (failedleg && failedleg.error) ||
+          new Error("No proxy transport could be started.")
+        );
+      }
+      var sw = legs[1].value;
+      var saves = legs[2].value;
       var transport = picked.transport;
 
       if (token !== starttoken) {
