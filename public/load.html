@@ -41,18 +41,6 @@
           }
           if (!win || !doc) return;
 
-          // 1games pages store the signed verification payload in
-          // localStorage, but their Unity framework only checks
-          // window.GMSOFT_SIGNED and otherwise fetches it with a synchronous
-          // XHR. Seed it before Unity starts: the sync request is what used to
-          // lock the game (and it is unreliable in Safari).
-          try {
-            if (!win.GMSOFT_SIGNED) {
-              var signdomain = win.localStorage.getItem("gmsdksigndomain");
-              if (signdomain) win.GMSOFT_SIGNED = signdomain;
-            }
-          } catch (e) {}
-
           var blockeddomains = [
             "doubleclick.net",
             "googlesyndication.com",
