@@ -7,8 +7,8 @@
 
 
 <html xmlns='http://www.w3.org/1999/xhtml' lang='' xml:lang=''>
-<base href="https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@15e85c42612500024c1cb8743f7f0e79fbc6ccbd/examination%20or%20smth/">
 <head>
+  <base href="https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@15e85c42612500024c1cb8743f7f0e79fbc6ccbd/examination%20or%20smth/">
   <meta charset='utf-8' /> 
   <meta name='viewport' content='width=device-width, user-scalable=no' />
   <title>Reality</title>
@@ -169,12 +169,11 @@
   </div>
 
   <script type='text/javascript' src='index.js'></script>
-  <script type='text/javascript' src='godotmerge.js'></script>
   <script type='text/javascript'>
     //<![CDATA[
 
     const GODOT_CONFIG = {
-      "args": [],
+      "args": ["--main-pack", "index.pck"],
       "canvasResizePolicy": 2,
       "executable": "index",
       "experimentalVK": false,
@@ -267,22 +266,27 @@
         displayFailureNotice('WebGL not available');
       } else {
         setStatusMode('indeterminate');
-        engine.startGame({
-          'onProgress': function(current, total) {
-            if (total > 0) {
-              statusProgressInner.style.width = current / total * 100 + '%';
-              setStatusMode('progress');
-              if (current === total) {
-                // wait for progress bar animation
-                setTimeout(() => {
-                  setStatusMode('indeterminate');
-                }, 500);
-              }
-            } else {
-              setStatusMode('indeterminate');
-            }
-          },
-        }).then(() => {
+        async function startGame() {
+          // The upstream build only ships numbered pack parts.
+          const pack = new Uint8Array(GODOT_CONFIG.fileSizes["index.pck"]);
+          let offset = 0;
+          for (let part = 1; part <= 8; part++) {
+            const file = "index.pck.part" + part;
+            const response = await fetch(file);
+            if (!response.ok) throw new Error("Could not load " + file);
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            pack.set(bytes, offset);
+            offset += bytes.length;
+            statusProgressInner.style.width = offset / pack.length * 100 + '%';
+            setStatusMode('progress');
+          }
+          if (offset !== pack.length) throw new Error("Incomplete game data");
+          setStatusMode('indeterminate');
+          await engine.init(GODOT_CONFIG.executable);
+          await engine.preloadFile(pack, "index.pck");
+          await engine.start();
+        }
+        startGame().then(() => {
           setStatusMode('hidden');
           initializing = false;
         }, displayFailureNotice);

@@ -3,7 +3,7 @@
 <html lang="en-US">
 
 <head>
-    <base href="https://cdn.jsdelivr.net/gh/marty-games/mga-unity@main/geometry-dash-subzero/">
+    <base href="/game-assets/m/ghraw/Entraptadoeztechnology/unity-games2/fd50784d2852294522f44af7bf241404dfdcdb5c/geometry-dash-subzero/">
     <title>Geometry Dash SubZero</title>
     <meta name="description" content="Play Geometry Dash SubZero Online For Free on Chromebook, PC, Windows, Desktop in Chrome and modern browsers.">
     <meta name="robots" content="noindex, nofollow">
@@ -2452,8 +2452,7 @@
                         console.log(e);
                         let decoder = new TextDecoder('utf-8');
                         let jsString = decoder.decode(e);
-                        let modifiedString = jsString.replace('https://api.1games.io/gmsoftsdk.js?v=1.5', 'gamesdk.js');
-                        modifiedString = modifiedString.replace('var redirect=true;', 'return false;var redirect=true;');
+                        let modifiedString = jsString.replace('var redirect=true;', 'return false;var redirect=true;');
                         let encoder = new TextEncoder();
                         let modifiedUint8Array = encoder.encode(modifiedString);
                         e = modifiedUint8Array;
@@ -2998,7 +2997,6 @@
             }, 1000);
         });
     </script>
-    <script src="https://marty-games.github.io/sitelock.js"></script>
 </body>
 
 </html>

@@ -35,12 +35,6 @@
     </div>
 
     <script>
-      window.addEventListener("load", function () {
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.register("https://cdn.jsdelivr.net/gh/dayyiq/fdfd@main/ServiceWorker.js");
-        }
-      });
-
       function onResize() {
         var container = canvas.parentElement;
         var w;
@@ -72,7 +66,7 @@
       var loadingBar = document.querySelector("#unity-loading-bar");
       var progressBarFull = document.querySelector("#unity-progress-bar-full");
 
-      var buildUrl = "https://cdn.jsdelivr.net/gh/dayyiq/fdfd@main/Build/";
+      var buildUrl = "https://cdn.jsdelivr.net/gh/dayyiq/fdfd@main/Build";
       var loaderUrl = buildUrl + "/dist.loader.js";
       var config = {
         dataUrl: buildUrl + "/dist.data.unityweb",
@@ -111,10 +105,10 @@
 
       
       window.addEventListener("blur", function(){
-        window.Unity.SendMessage('AudioGame', 'AudioBackgroundToggle', 'false');
+        window.Unity?.SendMessage('AudioGame', 'AudioBackgroundToggle', 'false');
       });
       window.addEventListener("focus", function(){
-        window.Unity.SendMessage('AudioGame', 'AudioBackgroundToggle', 'true');
+        window.Unity?.SendMessage('AudioGame', 'AudioBackgroundToggle', 'true');
       });
     </script>
 
@@ -154,13 +148,6 @@
           // sdk.adv.showFullscreenAdv();
       }
 
-      (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-      m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-      ym(86196628, "init", {
-          clickmap:true,
-          trackLinks:true,
-          accurateTrackBounce:true
-      });
     </script>
   </body>
 </html>

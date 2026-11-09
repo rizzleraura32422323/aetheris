@@ -5,6 +5,50 @@ import vm from "node:vm";
 import { createHash } from "node:crypto";
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 
+test("Assessment Examination mounts the complete split pack before starting Godot", async () => {
+  const html = read("../public/assets/games/AssessmentExamination.html");
+  const script = html.slice(
+    html.indexOf("async function startGame()"),
+    html.indexOf("startGame().then"),
+  );
+  const calls = [];
+  const context = {
+    GODOT_CONFIG: { executable: "index", fileSizes: { "index.pck": 8 } },
+    fetch: async file => {
+      calls.push(file);
+      return { ok: true, arrayBuffer: async () => Uint8Array.of(calls.length).buffer };
+    },
+    engine: {
+      async init(name) { calls.push(name); },
+      async preloadFile(pack, path) {
+        assert.deepEqual([...pack], [1, 2, 3, 4, 5, 6, 7, 8]);
+        calls.push(path);
+      },
+      async start() { calls.push("start"); },
+    },
+    statusProgressInner: { style: {} },
+    setStatusMode() {},
+  };
+  await vm.runInNewContext(script + "startGame()", context);
+  assert.deepEqual(calls, [
+    ...Array.from({ length: 8 }, (_, index) => "index.pck.part" + (index + 1)),
+    "index", "index.pck", "start",
+  ]);
+  context.fetch = async () => ({ ok: false });
+  await assert.rejects(vm.runInNewContext(script + "startGame()", context), /index\.pck\.part1/);
+  assert.equal(calls.filter(call => call === "start").length, 1);
+});
+
+test("Bridge Race uses its own Unity build and Crossy Road lets its bootstrap load the game once", () => {
+  const bridge = read("../public/assets/games/bridgerace.html");
+  const crossy = read("../public/assets/games/crossyroad.html");
+  assert.match(bridge, /\/bridge-race\//);
+  assert.match(bridge, /BridgeRace\.loader\.js/);
+  assert.match(crossy, /IN_PLAYABLES_ENV: false/);
+  assert.match(crossy, /src="scripts\/bootstrap\.min\.js"/);
+  assert.doesNotMatch(crossy, /src="scripts\/game\.min\.js"/);
+});
+
 test("Escape Road City 2 retains the supplied HTML and original Unity build", () => {
   const html = read("../public/assets/games/erc2.html");
   // The game is user-supplied. Fix the player, not its source or build version.

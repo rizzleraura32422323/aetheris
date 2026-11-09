@@ -132,15 +132,12 @@
     >
       <div class="update-modal">
         <h2 id="updatemodaltitle">What's new</h2>
-        <p>Here's what changed in this update:</p>
+        <p>We fixed several games from your reports.</p>
         <ul class="update-list">
-          <li>Movies UI was updated</li>
-          <li>Performance was improved across the site</li>
-          <li>AI models were added</li>
-          <li>
-            Games are still being fixed, and we're doing lots of testing to keep
-            improving the site
-          </li>
+          <li>Basket Random now loads the Play button.</li>
+          <li>Bridge Race now opens the correct game.</li>
+          <li>Crossy Road now updates your coin total.</li>
+          <li>Assessment Examination now loads its game data.</li>
         </ul>
         <div class="update-modal-footer">
           <button id="updatemodalclose" type="button">Got it</button>
@@ -592,7 +589,7 @@
     </style>
 
     <script>
-      var UPDATE_VERSION = "30";
+      var UPDATE_VERSION = "31";
 
       async function loadquote() {
         try {
