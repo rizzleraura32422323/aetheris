@@ -663,6 +663,13 @@
   }
 
   async function loaditem(entry) {
+    // Catalogs can point an app at its own page instead of a proxied URL
+    // (TikTok has a dedicated gateway page). Old /load.html?app=<id> links
+    // still work by handing off here.
+    if (entry && typeof entry.href === "string" && entry.href) {
+      location.replace(entry.href);
+      return;
+    }
     item = entry;
     attempts = itemsources(entry);
     attemptindex = 0;

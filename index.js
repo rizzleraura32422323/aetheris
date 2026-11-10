@@ -26,6 +26,10 @@ import { scramjetPath } from "@mercuryworkshop/scramjet/path";
 import { lcRelayUpgrade } from "./lc-relay.js";
 import { createEosRelay } from "./eos-relay.js";
 import { registerMovieRelay } from "./movie-relay.js";
+import {
+  handleTikTokRequest,
+  upgradeTikTok,
+} from "./lib/tiktok-gateway.js";
 import { createmoviereport } from "./lib/movie-report.js";
 import { createRateLimiter } from "./lib/rate-limit.js";
 import { downloadPublicImage, resolvePublicUrl } from "./lib/public-network.js";
@@ -533,6 +537,9 @@ setInterval(() => {
 // --- fastify ---
 
 function handleupgrade(req, socket, head) {
+  // TikTok gateway relay (see lib/tiktok-gateway.js)
+  if (upgradeTikTok(req, socket, head)) return;
+
   if (req.url.endsWith("/wisp/")) {
     // otherwise any website could use visitors' browsers to drive our TCP relay
     if (!websocketOriginAllowed(req)) {
@@ -646,6 +653,9 @@ const fastify = Fastify({
       .on("request", (req, res) => {
         // iOS Safari blocks AudioContext.resume() in iframes without this
         res.setHeader("Permissions-Policy", "autoplay=*, fullscreen=*");
+        // The gateway needs the raw body stream, Range passthrough and its own
+        // response headers, so it runs before Fastify's parser/router.
+        if (handleTikTokRequest(req, res)) return;
         handler(req, res);
       })
       .on("upgrade", handleupgrade),

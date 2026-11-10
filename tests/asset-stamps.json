@@ -60,8 +60,8 @@
     "hash": "135917a9749a04c7"
   },
   "js/apps.js": {
-    "stamp": "20261106.1",
-    "hash": "ad56745bac2b7283"
+    "stamp": "20261110.2",
+    "hash": "d3ccae5cd9953817"
   },
   "js/cache-reset.js": {
     "stamp": "20260924.1",
@@ -88,8 +88,8 @@
     "hash": "f2a97ccdc634e337"
   },
   "js/load.js": {
-    "stamp": "20261106.3",
-    "hash": "b9e44e6aa36ea0ff"
+    "stamp": "20261110.1",
+    "hash": "c4e255c4c949125e"
   },
   "js/movie-proxy-client.js": {
     "stamp": "20261102.1",
@@ -124,8 +124,8 @@
     "hash": "316d47c840787b14"
   },
   "js/site.js": {
-    "stamp": "20261101.1",
-    "hash": "5c9c761c9a7b7f47"
+    "stamp": "20261110.1",
+    "hash": "ee442f511914cdea"
   },
   "js/theme.js": {
     "stamp": "20261101.1",

@@ -11,6 +11,7 @@
 - **apps**: a handful of web apps
 - **proxy**: Scramjet with libcurl/epoxy transports
 - **movies & tv**: TMDB search plus a few embed sources
+- **tiktok**: a same-origin gateway with the real web app, feed and playback
 - **chat**: DMs with accounts
 - **ai**: chat and image gen through any OpenAI-compatible API
 - **cheats**: bookmarklets

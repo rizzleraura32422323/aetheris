@@ -10,6 +10,11 @@ PM2; Caddy uses the repo's `Caddyfile` as `/etc/caddy/Caddyfile`.
   catalogs (`/api/games/catalog/:source`); the client merges them into one
   library (`public/assets/data/games.js`).
 - `movie-relay.js` - server-side relay behind `/movie-proxy`.
+- `lib/tiktok-gateway.js` - in-process TikTok gateway under `/tiktok` (raw
+  request handler before Fastify, plus the `/tiktok/tt-ws` upgrade).
+- `lib/tiktok-cookies.js` - scoped TikTok cookie jar (`aetheris_tt_` prefix).
+- `public/tiktok.html` / `public/js/tiktok-client.js` - TikTok area UI and the
+  injected URL/cookie hook.
 - `Caddyfile` - public routing and server-side reverse proxies.
 - `public/movies.html` - Movies & TV UI and provider selection.
 - `public/js/scramjet-init.js` - browsing-proxy bootstrap for games/apps.
@@ -41,6 +46,30 @@ PM2; Caddy uses the repo's `Caddyfile` as `/etc/caddy/Caddyfile`.
 - Movie playback: test with an iPad/Safari UA and capture failed requests from
   nested frames. A `200` on the first embed document doesn't prove playback.
   Frame counts don't prove content either - screenshot-verify.
+
+## TikTok gateway constraints
+
+- `handleTikTokRequest` runs on the raw HTTP server before Fastify so request
+  bodies (gzipped JSON), `Range`/`206` and the WebSocket upgrade keep working.
+  Don't move it behind Fastify's body parser.
+- TikTok's router reads `location.pathname`, so default-host pages are masked
+  to real root paths (`/foryou`, `/@user`) rather than `/tiktok/...`. Those
+  paths are only claimed while the `aetheris_tt` marker cookie is present, and
+  only for the `TIKTOK_NAV_RE` allowlist. Don't widen that list to site routes;
+  `/settings.html`, `/api/*`, etc. must always stay with Fastify.
+- Root nav requests redirect into `/tiktok/tt?url=...` so the document loads
+  under `/tiktok` (relative asset URLs and the masked client), then the client
+  `replaceState`s back to the root path the router expects.
+- Upstream cookies are namespaced `aetheris_tt_` with `Path=/`, and the gateway
+  strips the prefix before forwarding. Site cookies are never sent upstream,
+  and the prefix prevents name collisions; don't switch the path back to
+  `/tiktok` or masked root pages lose the jar. The injected client does the
+  same renaming for `document.cookie` writes.
+- Same-origin by design: TikTok JS can read the site's localStorage. Don't put
+  secrets there (the DM token currently lives in localStorage). A subdomain is
+  the only real isolation.
+- After changing `public/tiktok.html` or `public/js/tiktok-client.js`, run
+  `pnpm stamp` (the client/page loader stamps are checked by tests).
 
 ## Movies proxy constraints
 

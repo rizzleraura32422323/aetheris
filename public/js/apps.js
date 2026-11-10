@@ -83,7 +83,9 @@
 
     card.classList.add("card-item");
     card.dataset.id = String(app.id || "");
-    card.href = "/load.html?app=" + encodeURIComponent(app.id);
+    // A direct link opts out of load.html/Scramjet entirely; TikTok uses its
+    // own same-origin gateway page.
+    card.href = app.href || "/load.html?app=" + encodeURIComponent(app.id);
     card.title = title;
 
     img.loading = "lazy";
@@ -225,11 +227,9 @@
     random.addEventListener("click", function () {
       applyFilters(false, false);
       if (filtered.length) {
+        var pick = filtered[Math.floor(Math.random() * filtered.length)];
         location.href =
-          "/load.html?app=" +
-          encodeURIComponent(
-            filtered[Math.floor(Math.random() * filtered.length)].id,
-          );
+          pick.href || "/load.html?app=" + encodeURIComponent(pick.id);
       }
     });
   }

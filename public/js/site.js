@@ -180,6 +180,7 @@
     home: "home.html",
     games: "maths.html",
     apps: "apps.html",
+    tiktok: "tiktok.html",
     cheats: "cheats.html",
     chat: "chat.html",
     ai: "ai.html",
