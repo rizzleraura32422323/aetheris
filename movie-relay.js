@@ -3,7 +3,7 @@ import https from "node:https";
 import { URL } from "node:url";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
-import { pipeline } from "node:stream";
+import { pipeline, Transform } from "node:stream";
 import { resolvePublicUrl, pinnedLookup } from "./lib/public-network.js";
 
 const MAX_REDIRECTS = 5;
@@ -115,21 +115,11 @@ const NEGATIVE_TTL_MS = {
 const NEGATIVE_MAX_ENTRIES = 2048;
 const MEDIA_EXT_RE = /\.(ts|m4s|m4v|mp4|m4a|aac|mp3|vtt|srt|key|cmfv|cmfa)$/i;
 
-function readBodyCapped(stream, cap) {
-  return (async () => {
-    const chunks = [];
-    let size = 0;
-    for await (const chunk of stream) {
-      size += chunk.length;
-      if (size > cap)
-        throw new Error(
-          `Upstream media response exceeds ${Math.round(cap / 1024 / 1024)} MB.`,
-        );
-      chunks.push(chunk);
-    }
-    return Buffer.concat(chunks);
-  })();
-}
+const SIGNED_REQUEST_HEADERS = [
+  "x-api-key", "x-request-timestamp", "x-request-nonce",
+  "x-request-signature", "x-client-fingerprint", "x-fingerprint-lite",
+  "x-server", "x-only-sources", "bw90agfmywth",
+];
 
 function serveCachedBody(reply, entry, tag) {
   try {
@@ -885,6 +875,22 @@ export function registerMovieRelay(
     }
   }
 
+  function trackMediaFetch(key, response) {
+    if (response.destroyed || inflight.has(key)) return;
+    let resolve;
+    const pending = new Promise((done) => { resolve = done; });
+    const settle = () => {
+      response.off("finish", settle);
+      response.off("close", settle);
+      inflight.delete(key);
+      resolve(bodyCacheGet(key));
+    };
+    inflight.set(key, pending);
+    response.once("finish", settle);
+    response.once("close", settle);
+    return settle;
+  }
+
   function negativeCacheGet(key) {
     const entry = negativeCache.get(key);
     if (!entry) return null;
@@ -1112,24 +1118,20 @@ export function registerMovieRelay(
         return reply.send(local.body);
       }
 
-      let currentUrl;
-      try {
-        currentUrl = await validateUrl(rawTarget);
-      } catch (err) {
-        reply.code(403).send(`SSRF validation failed: ${err.message}`);
-        return;
-      }
-
-      if (BLOCKED_DOMAINS.has(currentUrl.hostname.toLowerCase())) {
-        reply.code(403).send("Blocked domain");
-        return;
-      }
-
       // Repeated identical reads (player retry loops, seeks, several viewers
       // on one title) are answered from memory instead of the shared VPS
-      // egress that some CDNs throttle. Range requests bypass all of this.
-      const cacheKey = currentUrl.href;
-      const cacheableRead = req.method === "GET" && !req.headers.range;
+      // egress that some CDNs throttle. Only previously validated targets
+      // populate the cache. Any upstream dial still needs fresh validation.
+      const cacheKey = JSON.stringify([
+        rawTarget,
+        customReferer,
+        normalizeAcceptEncoding(req.headers["accept-encoding"]),
+        ...["accept", "accept-language", "user-agent", "sec-fetch-mode",
+          "sec-fetch-site", "sec-fetch-dest"].map((name) => req.headers[name]),
+      ]);
+      const cacheableRead = req.method === "GET" && !req.headers.range &&
+        !SIGNED_REQUEST_HEADERS.some((name) => req.headers[name] != null);
+      let settleMediaFetch;
       if (cacheableRead) {
         cacheStats.lookups++;
         const cached = SEGMENT_CACHE_BYTES > 0 ? bodyCacheGet(cacheKey) : null;
@@ -1156,6 +1158,23 @@ export function registerMovieRelay(
             return;
           }
         }
+      }
+
+      if (reply.raw.destroyed) return;
+      let currentUrl;
+      try {
+        if (cacheableRead && SEGMENT_CACHE_BYTES > 0 &&
+            MEDIA_EXT_RE.test(new URL(rawTarget).pathname))
+          settleMediaFetch = trackMediaFetch(cacheKey, reply.raw);
+        currentUrl = await validateUrl(rawTarget);
+      } catch (err) {
+        reply.code(403).send(`SSRF validation failed: ${err.message}`);
+        return;
+      }
+
+      if (BLOCKED_DOMAINS.has(currentUrl.hostname.toLowerCase())) {
+        reply.code(403).send("Blocked domain");
+        return;
       }
 
       if (req.method === "GET" && isCachedVersionFile(currentUrl)) {
@@ -1208,17 +1227,7 @@ export function registerMovieRelay(
           reqHeaders.range = req.headers.range;
         }
         // Flixer's sources endpoint 403s without its WASM-signed headers.
-        for (const h of [
-          "x-api-key",
-          "x-request-timestamp",
-          "x-request-nonce",
-          "x-request-signature",
-          "x-client-fingerprint",
-          "x-fingerprint-lite",
-          "x-server",
-          "x-only-sources",
-          "bw90agfmywth",
-        ]) {
+        for (const h of SIGNED_REQUEST_HEADERS) {
           if (req.headers[h] != null) reqHeaders[h] = req.headers[h];
         }
         if (body && method !== "GET" && method !== "HEAD") {
@@ -1441,8 +1450,7 @@ export function registerMovieRelay(
       // the log fills with the same 4xx. 403 HTML (Cloudflare challenges)
       // stays live because those clear on their own.
       if (
-        req.method === "GET" &&
-        !req.headers.range &&
+        cacheableRead &&
         NEGATIVE_TTL_MS[upstreamRes.statusCode] &&
         !(upstreamRes.statusCode === 403 && isHtml)
       ) {
@@ -1500,13 +1508,10 @@ export function registerMovieRelay(
         return passthrough;
       };
 
-      // Small immutable media bodies are buffered once, then served from
-      // memory; concurrent requests for the same URL share a single upstream
-      // fetch. Larger media keeps streaming.
+      // Stream immediately and keep a cache copy only while it fits.
       const declaredLength = Number(upstreamRes.headers["content-length"]);
-      if (
-        req.method === "GET" &&
-        !req.headers.range &&
+      const captureMedia =
+        cacheableRead &&
         SEGMENT_CACHE_BYTES > 0 &&
         upstreamRes.statusCode === 200 &&
         !isHtml &&
@@ -1521,57 +1526,44 @@ export function registerMovieRelay(
         (MEDIA_EXT_RE.test(cleanPath) ||
           contentType.startsWith("video/") ||
           contentType.startsWith("audio/") ||
-          contentType.includes("octet-stream"))
-      ) {
-        let resolveEntry;
-        const entryPromise = new Promise((resolve) => (resolveEntry = resolve));
-        inflight.set(cacheKey, entryPromise);
-        try {
-          const body = await readBodyCapped(
-            upstreamRes,
-            SEGMENT_MAX_ENTRY_BYTES,
-          );
-          const headers = passthroughHeaders();
-          const entry = { status: 200, headers, body };
-          bodyCacheSet(cacheKey, entry);
-          resolveEntry(entry);
-          reply.raw.on("error", () => {});
-          reply.hijack();
-          reply.raw.writeHead(200, headers);
-          reply.raw.end(body);
-        } catch (err) {
-          upstreamRes.destroy();
-          resolveEntry(null);
-          if (abort.signal.aborted) {
-            reply.raw.destroy();
-            return;
-          }
-          console.warn(
-            `[movie-proxy] upstream error ${currentUrl.host}${currentUrl.pathname}: ${err.message}`,
-          );
-          reply.removeHeader("content-length");
-          reply
-            .code(502)
-            .type("text/plain")
-            .send(`Upstream request error: ${err.message}`);
-        } finally {
-          if (inflight.get(cacheKey) === entryPromise)
-            inflight.delete(cacheKey);
-        }
-        return;
-      }
+          contentType.includes("octet-stream"));
 
       // Stream binary payloads straight through, preserving media byte ranges.
       if (
+        captureMedia ||
         req.method === "HEAD" ||
         (upstreamRes.statusCode === 206 && !isM3u8) ||
         (!isHtml && !isM3u8 && !isJson && !isJs && !isCss && !isPlain)
       ) {
         const passthrough = passthroughHeaders();
+        const streams = [upstreamRes];
+        if (captureMedia) {
+          settleMediaFetch ??= trackMediaFetch(cacheKey, reply.raw);
+          let chunks = [];
+          let size = 0;
+          streams.push(new Transform({
+            transform(chunk, _encoding, done) {
+              size += chunk.length;
+              if (chunks && size > SEGMENT_MAX_ENTRY_BYTES) {
+                chunks = null;
+                settleMediaFetch?.();
+              }
+              chunks?.push(chunk);
+              done(null, chunk);
+            },
+            flush(done) {
+              if (chunks && upstreamRes.complete) {
+                const body = Buffer.concat(chunks, size);
+                bodyCacheSet(cacheKey, { status: 200, headers: passthrough, body });
+              }
+              done();
+            },
+          }));
+        } else settleMediaFetch?.();
         reply.raw.on("error", () => {});
         reply.hijack();
         reply.raw.writeHead(upstreamRes.statusCode, passthrough);
-        pipeline(upstreamRes, reply.raw, (error) => {
+        pipeline([...streams, reply.raw], (error) => {
           if (error && !abort.signal.aborted)
             console.warn("[movie-proxy] stream closed:", error.message);
         });
@@ -1622,8 +1614,8 @@ export function registerMovieRelay(
         // Segments that come through the text path (extension-less
         // /proxy?data= hosts) are just as cacheable as .ts URLs.
         if (
-          req.method === "GET" &&
-          !req.headers.range &&
+          cacheableRead &&
+          upstreamRes.statusCode === 200 &&
           SEGMENT_CACHE_BYTES > 0 &&
           decompressed.length <= SEGMENT_MAX_ENTRY_BYTES
         ) {

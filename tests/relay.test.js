@@ -954,6 +954,9 @@ test("movie relay retries throttled media once and caches flixer version.json", 
 
 test("movie relay caches media bodies and answers repeat failures locally", async (t) => {
   const hits = { seg: 0, mislabeled: 0, storm: 0, slow: 0 };
+  let validations = 0;
+  let finishLarge;
+  const largeTail = new Promise((resolve) => { finishLarge = resolve; });
   const upstream = http.createServer(async (req, res) => {
     if (req.url.startsWith("/seg.ts")) {
       hits.seg++;
@@ -975,10 +978,16 @@ test("movie relay caches media bodies and answers repeat failures locally", asyn
       res.end("expired");
     } else if (req.url.startsWith("/slow.ts")) {
       hits.slow++;
+      await new Promise((resolve) => setTimeout(resolve, 100));
       res.writeHead(200, { "content-type": "video/mp2t" });
       res.write(Buffer.alloc(1024, 1));
       await new Promise((resolve) => setTimeout(resolve, 300));
       res.end(Buffer.alloc(1024, 2));
+    } else if (req.url === "/large.mp4") {
+      res.writeHead(200, { "content-type": "video/mp4" });
+      res.write(Buffer.alloc(1024, 1));
+      await largeTail;
+      res.end(Buffer.alloc(25 * 1024 * 1024 - 1024, 2));
     } else {
       res.writeHead(404, { "content-type": "text/plain" });
       res.end("nope");
@@ -989,6 +998,7 @@ test("movie relay caches media bodies and answers repeat failures locally", asyn
   const app = Fastify();
   registerMovieRelay(app, {
     resolveTarget: async (raw) => {
+      validations++;
       const url = new URL(raw);
       if (url.hostname !== "relay-fixture.test" || url.port !== String(port))
         throw new Error("Fixture host rejected.");
@@ -1014,6 +1024,7 @@ test("movie relay caches media bodies and answers repeat failures locally", asyn
     assert.equal(second.headers["x-movie-cache"], "hit");
     assert.deepEqual(second.rawPayload, first.rawPayload);
     assert.equal(hits.seg, 1, "repeat must not touch the upstream");
+    assert.equal(validations, 1, "repeat must not resolve the upstream again");
     // Range requests must keep streaming from the upstream.
     const ranged = await app.inject({
       method: "GET",
@@ -1052,9 +1063,7 @@ test("movie relay caches media bodies and answers repeat failures locally", asyn
   await t.test("concurrent requests for one URL share a fetch", async () => {
     const [a, b] = await Promise.all([
       app.inject(path("/slow.ts")),
-      new Promise((resolve) => setTimeout(resolve, 100)).then(() =>
-        app.inject(path("/slow.ts")),
-      ),
+      app.inject(path("/slow.ts")),
     ]);
     assert.equal(a.statusCode, 200);
     assert.equal(b.statusCode, 200);
@@ -1065,6 +1074,29 @@ test("movie relay caches media bodies and answers repeat failures locally", asyn
       "the second request must be served from the shared fetch",
     );
     assert.equal(hits.slow, 1);
+  });
+
+  await t.test("oversized chunked media streams before the upstream finishes", async () => {
+    const base = await app.listen({ port: 0, host: "127.0.0.1" });
+    try {
+      const response = await fetch(base + path("/large.mp4"), {
+        signal: AbortSignal.timeout(5000),
+      });
+      assert.equal(response.status, 200);
+      const reader = response.body.getReader();
+      const first = await reader.read();
+      assert.equal(first.value[0], 1);
+      finishLarge();
+      let bytes = first.value.length;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        bytes += value.length;
+      }
+      assert.equal(bytes, 25 * 1024 * 1024);
+    } finally {
+      finishLarge();
+    }
   });
 });
 

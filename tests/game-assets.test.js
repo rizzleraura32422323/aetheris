@@ -823,9 +823,9 @@ test("HEAD probes report sizes without downloading the body", async () => {
 
 test("large assets stream instead of being buffered whole", async () => {
   const size = 20 * 1024 * 1024;
-  let streamed = false;
+  let upstreamCalls = 0;
   const app = fixture({ fetchimpl: async () => {
-    streamed = true;
+    upstreamCalls++;
     const body = new ReadableStream({
       start(controller) {
         for (let i = 0; i < size / 65536; i++) controller.enqueue(new Uint8Array(65536));
@@ -835,7 +835,8 @@ test("large assets stream instead of being buffered whole", async () => {
     return new Response(body, { headers: { "content-length": String(size) } });
   }});
   try {
-    const result = await app.inject("/game-assets/m/jsdelivr/gh/bubblfan/fnaf@main/1/resources.zip.part1");
+    const url = "/game-assets/m/jsdelivr/gh/bubblfan/fnaf@main/1/resources.zip.part1";
+    const [result, follower] = await Promise.all([app.inject(url), app.inject(url)]);
     assert.equal(result.statusCode, 200);
     assert.equal(
       result.headers["content-length"],
@@ -848,10 +849,13 @@ test("large assets stream instead of being buffered whole", async () => {
       "a build that is still on its way may not sit in the browser for a year",
     );
     assert.equal((await bodyOf(result)).length, size);
-    assert.ok(streamed);
+    assert.equal(follower.statusCode, 200);
+    assert.equal(follower.headers["accept-ranges"], "bytes");
+    assert.equal((await bodyOf(follower)).length, size);
+    assert.equal(upstreamCalls, 1);
     // The build is on disk now, so the second visitor gets it from there
     // instead of pulling it through the VPS again.
-    const again = await app.inject("/game-assets/m/jsdelivr/gh/bubblfan/fnaf@main/1/resources.zip.part1");
+    const again = await app.inject(url);
     assert.equal(again.statusCode, 200);
     assert.equal((await bodyOf(again)).length, size);
     assert.equal(again.headers["content-length"], String(size), "a cached build is served from disk");
