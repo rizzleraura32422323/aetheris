@@ -68,6 +68,9 @@ PM2; Caddy uses the repo's `Caddyfile` as `/etc/caddy/Caddyfile`.
 - Same-origin by design: TikTok JS can read the site's localStorage. Don't put
   secrets there (the DM token currently lives in localStorage). A subdomain is
   the only real isolation.
+- Rewritten JS/CSS is cached in memory for 10 minutes (32 MB cap, `X-TT-Cache:
+  hit` on hits). Keep the key as the upstream URL; the rewritten body depends
+  on that URL, not on the page that requested it.
 - After changing `public/tiktok.html` or `public/js/tiktok-client.js`, run
   `pnpm stamp` (the client/page loader stamps are checked by tests).
 

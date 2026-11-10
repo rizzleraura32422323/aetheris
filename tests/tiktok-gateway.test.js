@@ -295,10 +295,12 @@ test("the injected client sets and clears the navigation marker", () => {
   assert.match(source, /Path=\/; SameSite=Lax/);
 });
 
-test("the TikTok area guards against a frame escape to the site root", () => {
+test("the TikTok area is only the frame", () => {
   const page = site("tiktok.html");
   assert.match(page, /SITEPAGE_RE/);
   assert.match(page, /current\.pathname === "\/"/);
+  assert.match(page, /id="tiktok-frame"/);
+  assert.doesNotMatch(page, /tiktok-bar|tiktok-url|tiktok-reload|tiktok-open/);
 });
 
 test("the cookie path constant is root so masked paths can see the jar", () => {
