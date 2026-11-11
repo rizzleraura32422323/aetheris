@@ -5,7 +5,7 @@
     <script defer src="./js/tutorial.js?v=20261103.1"></script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Aetheris</title>
+    <title>MCPS Home</title>
     <link
       rel="shortcut icon"
       href="./assets/images/icon.png"
@@ -40,9 +40,9 @@
       // theme name -> theme-color. The shell doesn't load theme.js, so this
       // copies its theme list; keep both in sync (tests/client.test.js checks).
       Aetheris.themeColors = {
-        dark: "#0f0f0f",
-        "charcoal-gold": "#0f0f0f",
-        "dark-blue": "#020617",
+        dark: "#05070d",
+        "charcoal-gold": "#05070d",
+        "dark-blue": "#05070d",
       };
       Aetheris.isTheme = function (theme) {
         return Object.prototype.hasOwnProperty.call(
@@ -320,11 +320,28 @@
       }
     </style>
     <link rel="stylesheet" href="./css/usability.css?v=20261103.3" />
+    <style id="mcps-brand-theme">
+      :root, body {
+        --accent: #3b82f6;
+        --sidebar-bg: linear-gradient(180deg, #0b1220, #030712);
+        --sidebar-border: rgba(59, 130, 246, .28);
+        --sidebar-handle-bg: #0b1220;
+        --sidebar-handle-color: #facc15;
+        --surface-active: linear-gradient(120deg, #2563eb, #facc15);
+        --nav-active-text: #07111f;
+        --active-shadow: 0 8px 24px rgba(59, 130, 246, .22);
+        --sidebar-divider: rgba(59, 130, 246, .18);
+        --nav-text: #dbeafe;
+      }
+      .logo-name { color: #facc15; }
+      .navitem a.is-active .nav-label { color: #07111f; }
+    </style>
+
   </head>
 
   <body class="app-mode">
     <div id="status-toast" role="status">
-      <div id="status-toast-title">Aetheris</div>
+      <div id="status-toast-title">MCPS Home</div>
       <div id="status-toast-body">ready!</div>
     </div>
     <input
@@ -355,7 +372,7 @@
             src="./assets/images/icon.png"
             draggable="false"
             class="logo-img"
-            alt="Aetheris logo"
+            alt="MCPS Home logo"
           />
         </a>
         <div class="logo-text">
@@ -413,22 +430,7 @@
             ></a
           >
         </div>
-        <div class="navitem">
-          <a href="#" data-page="chat"
-            ><img src="./assets/images/chat.png" alt="" /><span
-              class="nav-label"
-              >Chat</span
-            ></a
-          >
-        </div>
-        <div class="navitem">
-          <a href="#" data-page="ai"
-            ><img src="./assets/images/ai.png" alt="" /><span class="nav-label"
-              >AI</span
-            ></a
-          >
-        </div>
-        <div class="navitem">
+         <div class="navitem">
           <a href="#" data-page="movies"
             ><img src="./assets/images/movies.png" alt="" /><span
               class="nav-label"
