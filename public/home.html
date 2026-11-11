@@ -10,7 +10,7 @@
       href="./assets/images/icon.png"
       type="image/png"
     />
-    <title>Aetheris</title>
+    <title>MCPS Home</title>
 
     <link rel="stylesheet" href="./css/main.css?v=20261011.2" />
     <link rel="stylesheet" href="./css/cards.css?v=20260907.1" />
@@ -31,8 +31,9 @@
 
   <body>
     <div class="dark-home">
-      <h1 class="dark-title">Aetheris</h1>
-      <p class="dark-subtitle" id="darksubtitle">nichest site..</p>
+      <h1 class="dark-title">MCPS Home</h1>
+      <div class="fun-facts" aria-label="Fun facts"><span>Have fun :)</span><span>This is so cool isn't it?</span><span>67 Skibidi Rizz</span></div>
+      <p class="dark-subtitle" id="darksubtitle">Welcome to MCPS Home</p>
 
       <div class="dark-search-wrap">
         <input
@@ -73,25 +74,7 @@
           <img src="./assets/images/apps.png" alt="" draggable="false" />
           <span>Apps</span>
         </a>
-        <a
-          class="home-tile"
-          href="/index.html#chat"
-          target="_top"
-          data-app="chat"
-        >
-          <img src="./assets/images/chat.png" alt="" draggable="false" />
-          <span>Chat</span>
-        </a>
-        <a
-          class="home-tile"
-          href="/index.html#ai"
-          target="_top"
-          data-app="ai"
-        >
-          <img src="./assets/images/ai.png" alt="" draggable="false" />
-          <span>AI</span>
-        </a>
-        <a
+         <a
           class="home-tile"
           href="/index.html#cheats"
           target="_top"
@@ -118,9 +101,10 @@
       </div>
     </div>
 
-    <div class="online-status" aria-live="polite">
-      <span class="online-dot"></span> Online now
-      <span id="online-count">—</span>
+    <div class="device-status" aria-live="polite">
+      <span id="device-time">--:--</span><span class="status-separator">•</span>
+      <span id="device-date">Loading date…</span><span class="status-separator">•</span>
+      <span id="device-battery">Battery unavailable</span>
     </div>
 
     <div
@@ -155,6 +139,28 @@
     </a>
 
     <style>
+      :root {
+        --bg-color: #05070d;
+        --text-color: #f4f7ff;
+        --accent: #3b82f6;
+        --surface-1: rgba(15, 23, 42, 0.88);
+        --surface-2: rgba(30, 41, 59, 0.94);
+        --border-subtle: rgba(59, 130, 246, 0.24);
+        --border-strong: rgba(250, 204, 21, 0.48);
+      }
+      body { background: #05070d !important; color: #f4f7ff; }
+      .dark-title { color: #facc15; text-shadow: 0 0 28px rgba(59,130,246,.22); }
+      .fun-facts { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:0 0 22px; }
+      .fun-facts span { padding:7px 12px; border:1px solid rgba(59,130,246,.28); border-radius:999px; background:rgba(15,23,42,.72); color:#dbeafe; font-size:12px; font-weight:600; }
+      .dark-search { border-color:rgba(59,130,246,.35); background:#0b1220; }
+      .home-tile { background:#0b1220; border-color:rgba(59,130,246,.25); }
+      .home-tile:hover { border-color:#facc15; }
+      .device-status { position:fixed; bottom:max(12px,env(safe-area-inset-bottom,12px)); left:50%; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:9px; max-width:calc(100vw - 24px); padding:8px 14px; border:1px solid rgba(59,130,246,.28); border-radius:999px; background:rgba(3,7,18,.88); color:#e2e8f0; font:600 12px var(--font-sans); white-space:nowrap; z-index:100; pointer-events:none; backdrop-filter:blur(10px); }
+      .status-separator { color:#facc15; }
+      #device-time { color:#93c5fd; font-variant-numeric:tabular-nums; }
+      #device-battery { color:#facc15; }
+      @media (max-width:520px) { .device-status { font-size:10px; gap:6px; padding:7px 10px; } .fun-facts { gap:6px; } .fun-facts span { font-size:11px; } }
+
       .rtype {
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -418,16 +424,7 @@
         animation: modal-out 0.25s ease forwards;
       }
 
-      :root[theme="dark"] .online-status,
-      body[theme="dark"] .online-status {
-        background: rgba(0, 0, 0, 0.6);
-      }
-      :root[theme="dark-blue"] .online-status,
-      body[theme="dark-blue"] .online-status {
-        background: rgba(0, 0, 0, 0.5);
-      }
-
-      /* Report modal */
+       /* Report modal */
       .report-overlay {
         display: none;
         position: fixed;
@@ -705,10 +702,36 @@
         if (!tutorialbusy()) open();
       }
 
+      function updateDeviceStatus() {
+        var now = new Date();
+        var time = document.getElementById("device-time");
+        var date = document.getElementById("device-date");
+        if (time) time.textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        if (date) date.textContent = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+      }
+
+      async function setupBatteryStatus() {
+        var el = document.getElementById("device-battery");
+        if (!el) return;
+        if (!navigator.getBattery) { el.textContent = "Battery unavailable"; return; }
+        try {
+          var battery = await navigator.getBattery();
+          function update() {
+            el.textContent = "Battery " + Math.round(battery.level * 100) + "%" + (battery.charging ? " · Charging" : "");
+          }
+          update();
+          battery.addEventListener("levelchange", update);
+          battery.addEventListener("chargingchange", update);
+        } catch (_) { el.textContent = "Battery unavailable"; }
+      }
+
       document.addEventListener("DOMContentLoaded", function () {
         loadquote();
         setupsearch();
         showupdatemodal();
+        updateDeviceStatus();
+        setInterval(updateDeviceStatus, 1000);
+        setupBatteryStatus();
       });
 
       // Quick links open their page inside the shell, like the menu does.
